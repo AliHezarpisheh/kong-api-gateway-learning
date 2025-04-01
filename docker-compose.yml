@@ -1,0 +1,82 @@
+services:
+  kong-db:
+    image: postgres:16
+    container_name: kong-db
+    restart: unless-stopped
+    ports:
+      - 5342:5342
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - kong-data:/var/lib/postgresql/data
+    networks:
+      - kong-network
+
+  kong-migration:
+    image: kong:3.9
+    command: "kong migration bootstrap"
+    restart: on-failure
+    environment:
+      - KONG_DATABASE=${KONG_DATABASE}
+      - KONG_PG_HOST=${KONG_PG_HOST}
+      - KONG_PG_USER=${KONG_PG_USER}
+      - KONG_PG_PASSWORD=${KONG_PG_PASSWORD}
+    depends_on:
+      - kong-db
+    networks:
+      - kong-network
+
+  kong:
+    image: kong:3.9
+    container_name: kong
+    restart: unless-stopped
+    environment:
+      - KONG_DATABASE=${KONG_DATABASE}
+      - KONG_PG_HOST=${KONG_PG_HOST}
+      - KONG_PG_USER=${KONG_PG_USER}
+      - KONG_PG_PASSWORD=${KONG_PG_PASSWORD}
+      - KONG_PROXY_ACCESS_LOG=${KONG_PROXY_ACCESS_LOG}
+      - KONG_ADMIN_ACCESS_LOG=${KONG_ADMIN_ACCESS_LOG}
+      - KONG_PROXY_ERROR_LOG=${KONG_PROXY_ERROR_LOG}
+      - KONG_ADMIN_ERROR_LOG=${KONG_ADMIN_ERROR_LOG}
+      - KONG_ADMIN_LISTEN=${KONG_ADMIN_LISTEN}
+    ports:
+      - "8000:8000" 
+      - "8443:8443"
+      - "8001:8001"
+      - "8444:8444"
+    depends_on:
+      - kong-migration
+      - kong-db
+    networks:
+      - kong-network
+
+  konga:
+    image: pantsel/konga:latest
+    container_name: konga
+    restart: unless-stopped
+    environment:
+      - DB_ADAPTER=${DB_ADAPTER}
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DATABASE=${DB_DATABASE}
+      - NODE_ENV=${NODE_ENV}
+    ports:
+      - "1337:1337"
+    depends_on:
+      - kong
+      - kong-db
+    networks:
+      - kong-network
+
+
+networks:
+  kong-network:
+    driver: bridge
+
+
+volumes:
+  kong-data:
